@@ -17,7 +17,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git gawk unzip wget python3 rsync libncurses-dev zlib1g-dev
+          sudo apt full-upgrade -y
+          sudo apt-get install -y build-essential git gawk unzip wget python3 rsync libncurses-dev zlib1g-dev 
 
       - name: Cache SDK
         uses: actions/cache@v4
@@ -47,6 +48,10 @@ jobs:
           if [ ! -d rtl88x2bu ]; then
             git clone https://github.com/mirobiala/rtl88x2bu-cl rtl88x2bu
           fi
+
+      - name: Patch Makefile to use git source
+        run: |
+          sed -i 's/^PKG_SOURCE_URL.*/PKG_SOURCE_PROTO:=git\nPKG_SOURCE_URL:=https:\/\/github.com\/mirobiala\/rtl88x2bu-cl.git\nPKG_SOURCE_VERSION:=HEAD\nPKG_MIRROR_HASH:=skip/' sdk/package/rtl88x2bu/Makefile
 
       - name: Compile driver only
         run: |
