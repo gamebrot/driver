@@ -17,30 +17,53 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git gawk unzip wget python3
+          sudo apt-get install -y build-essential git gawk unzip wget python3 rsync libncurses-dev zlib1g-dev
+
+      - name: Cache SDK
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: ${{ runner.os }}-immortalwrt-sdk-24.10.0-x86-64
 
       - name: Download ImmortalWrt SDK
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           wget https://downloads.immortalwrt.org/releases/24.10.0/targets/x86/64/immortalwrt-sdk-24.10.0-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
           tar -I zstd -xvf immortalwrt-sdk-24.10.0-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
           mv immortalwrt-sdk-24.10.0-x86-64_gcc-13.3.0_musl.Linux-x86_64 sdk
 
+      - name: Cache build dirs
+        uses: actions/cache@v4
+        with:
+          path: |
+            sdk/staging_dir
+            sdk/build_dir
+            sdk/dl
+          key: ${{ runner.os }}-immortalwrt-build-24.10.0
+
       - name: Clone driver package
         run: |
           cd sdk/package
-          git clone https://github.com/mirobiala/rtl88x2bu-cl rtl88x2bu
+          if [ ! -d rtl88x2bu ]; then
+            git clone https://github.com/mirobiala/rtl88x2bu-cl rtl88x2bu
+          fi
 
-      - name: Compile driver
+      - name: Compile driver only
         run: |
           cd sdk
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
           make defconfig
-          make package/rtl88x2bu/compile V=s
+          make package/rtl88x2bu/compile V=s -j$(nproc)
+
+      - name: List build output
+        run: |
+          echo "=== Files built ==="
+          find sdk/bin/packages/ -type f -name "*.ipk" || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: rtl88x2bu-ipk
           path: |
-            sdk/bin/packages/x86_64/*/rtl88x2bu*.ipk
+            sdk/bin/packages/x86_64/base/*rtl88x2bu*.ipk
+            sdk/bin/packages/x86_64/base/*kmod-rtl88x2bu*.ipk
+          if-no-files-found: error
